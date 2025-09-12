@@ -24,7 +24,11 @@ struct DiscoveredService
   std::string hostname;
   std::set<std::string> addresses;
   int port;
+
+  std::strong_ordering operator<=>(const DiscoveredService& other) const;
+  bool operator==(const DiscoveredService& other) const;
 };
+
 
 class AvahiDiscoveryService
 {
@@ -54,7 +58,7 @@ private:
 
   DiscoveryCallback m_cb;
 
-  std::map<std::string, DiscoveredService> m_services;
+  std::vector<DiscoveredService> m_services;
   mutable std::mutex m_mutex;
 };
 

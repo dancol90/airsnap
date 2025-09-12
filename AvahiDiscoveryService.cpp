@@ -4,6 +4,7 @@
 #include <string>
 #include <format>
 #include <iostream>
+#include <algorithm>
 
 #include <avahi-client/publish.h>
 #include <avahi-client/client.h>
@@ -69,13 +70,12 @@ public:
         std::cout << std::format("[trace] Zeroconf: service was removed [{}][{}][{}][{}]", name, type, domain, interface) << std::endl;
 
         std::lock_guard<std::mutex> lock(self->m_mutex);
-        std::string key = std::format("{}|{}|{}", name, type, domain);
         
-        auto it = self->m_services.find(key);
+        auto it = std::find(self->m_services.begin(), self->m_services.end(), DiscoveredService{ name, type, domain });
         if (it != self->m_services.end())
         {
           if (self->m_cb)
-            self->m_cb(it->second, AvahiDiscoveryService::Event::Removed);
+            self->m_cb(*it, AvahiDiscoveryService::Event::Removed);
 
           self->m_services.erase(it);
         }
@@ -110,9 +110,12 @@ public:
 
       std::lock_guard<std::mutex> lock(self->m_mutex);
 
-      std::string key = std::format("{}|{}|{}", name, type, domain);
-      auto it = self->m_services.try_emplace(key);
-      auto & service = it.first->second;
+      auto existing_it = std::find(self->m_services.begin(), self->m_services.end(), DiscoveredService{ name, type, domain });
+      auto it = existing_it != self->m_services.end() ?
+        existing_it :
+        self->m_services.emplace(self->m_services.end(), name, type, domain);
+
+      auto & service = *it;
 
       // Whether it existed already or not, update all the infos
       service.name = name;
@@ -144,7 +147,7 @@ public:
       }
 
       if (self->m_cb)
-        self->m_cb(service, it.second ? AvahiDiscoveryService::Event::Added : AvahiDiscoveryService::Event::Updated);
+        self->m_cb(service, it != existing_it ? AvahiDiscoveryService::Event::Added : AvahiDiscoveryService::Event::Updated);
 
       break;
     }
@@ -221,8 +224,23 @@ AvahiDiscoveryService::~AvahiDiscoveryService()
 std::vector<DiscoveredService> AvahiDiscoveryService::getDiscoveredServices() const
 {
   std::lock_guard<std::mutex> lock(m_mutex);
-  std::vector<DiscoveredService> svcs;
-  for (auto & svc : m_services)
-    svcs.push_back(svc.second);
-  return svcs;
+  return m_services;
+}
+
+std::strong_ordering DiscoveredService::operator<=>(const DiscoveredService& other) const
+{
+  auto c = name <=> other.name;
+  if (c != 0)
+    return c;
+
+  c = type <=> other.type;
+  if (c != 0)
+    return c;
+
+  return domain <=> other.domain;
+}
+
+bool DiscoveredService::operator==(const DiscoveredService& other) const
+{
+  return (*this <=> other) == std::strong_ordering::equal;
 }
