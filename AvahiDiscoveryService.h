@@ -10,25 +10,11 @@
 #include <vector>
 #include <functional>
 
+#include "DiscoveredService.h"
+
 struct AvahiThreadedPoll;
 struct AvahiClient;
 struct AvahiServiceBrowser;
-
-struct DiscoveredService
-{
-  std::string name;
-  std::string type;
-  std::string domain;
-  std::map<std::string, std::string> description;
-
-  std::string hostname;
-  std::set<std::string> addresses;
-  int port;
-
-  std::strong_ordering operator<=>(const DiscoveredService& other) const;
-  bool operator==(const DiscoveredService& other) const;
-};
-
 
 class AvahiDiscoveryService
 {

@@ -1,60 +1,19 @@
 #include "AvahiDiscoveryService.h"
+#include "ClientProcess.h"
 
 #include <iostream>
 #include <thread>
 #include <format>
+#include <forward_list>
 
-#include <csignal>
-
-#include <boost/process/v2.hpp>
 #include <boost/asio.hpp>
 
 using namespace std::chrono_literals;
-namespace bp = boost::process::v2;
-
-struct ClientProcess
-{
-  ClientProcess(boost::asio::io_context & ctx, DiscoveredService service) :
-    service(std::move(service)),
-    process(std::move(create_process(ctx)))
-  {
-    process.async_wait(std::bind_front(&ClientProcess::on_exit, this));
-  }
-
-private:
-
-  bp::process create_process(boost::asio::io_context & ctx)
-  {
-    return bp::process(
-      ctx,
-      //bp::environment::find_executable("sleep"),
-      "/home/daniele/snapcast/bin/snapserver",
-      // Arguments
-      { "--config=/home/daniele/snapcast/server/etc/snapserver.conf" },
-      // No stdin, stdout&stderr to parent
-      bp::process_stdio{nullptr, {}, {}}
-    );
-  }
-
-  void on_exit(boost::system::error_code ec, int exit_code)
-  {
-    if (ec.failed())
-    {
-      std::cout << std::format("[ERROR] Can't wait for process completion: {}", ec.message()) << std::endl;
-      return;
-    }
-
-    std::cout << std::format("Process {} exited with code {} [{}]", process.id(), exit_code, ec.message()) << std::endl;
-  }
-
-  DiscoveredService service;
-  bp::process process;
-};
 
 int main()
 {
   boost::asio::io_context ctx;
-
+  std::forward_list<ClientProcess> clients;
   AvahiDiscoveryService zeroconf("_raop._tcp");
 
   zeroconf.setCallback([&](const DiscoveredService service, AvahiDiscoveryService::Event event)
@@ -62,19 +21,24 @@ int main()
     switch (event)
     {
     case AvahiDiscoveryService::Event::Added:
-      std::cout << std::format("Added service {} {}", service.name, *service.addresses.begin()) << std::endl;
-      //boost::asio::post(ctx, []() {});
+      std::cout << std::format(">>>>>>>>>>> Found new service {} {}", service.name, *service.addresses.begin()) << std::endl;
+      clients.remove_if([&](auto & i) { return i.service() == service; });
+      clients.emplace_front(ctx, service);
       break;
+
     case AvahiDiscoveryService::Event::Updated:
-      std::cout << "Update service " << service.name << std::endl;
+      std::cout << ">>>>>>>>>>> Updated service " << service.name << std::endl;
       break;
+
     case AvahiDiscoveryService::Event::Removed:
-      std::cout << "Removed service " << service.name << std::endl;
+      std::cout << ">>>>>>>>>>> Removed service " << service.name << std::endl;
+      clients.remove_if([&](auto & i) { return i.service() == service; });
       break;
+
     }
   });
 
-  // boost::asio::steady_timer tm(ctx, 5s);
+  // boost::asio::steady_timer tm(ctx, 20s);
   // tm.async_wait([&](boost::system::error_code ec)
   // {
   //   if (ec.failed())

@@ -226,21 +226,3 @@ std::vector<DiscoveredService> AvahiDiscoveryService::getDiscoveredServices() co
   std::lock_guard<std::mutex> lock(m_mutex);
   return m_services;
 }
-
-std::strong_ordering DiscoveredService::operator<=>(const DiscoveredService& other) const
-{
-  auto c = name <=> other.name;
-  if (c != 0)
-    return c;
-
-  c = type <=> other.type;
-  if (c != 0)
-    return c;
-
-  return domain <=> other.domain;
-}
-
-bool DiscoveredService::operator==(const DiscoveredService& other) const
-{
-  return (*this <=> other) == std::strong_ordering::equal;
-}

@@ -10,8 +10,10 @@ find_package(Boost REQUIRED CONFIG)
 
 add_executable(airsnap
   main.cpp
+  DiscoveredService.h
   AvahiDiscoveryService.h
   AvahiDiscoveryService.cpp
+  ClientProcess.h
 )
 
 target_link_libraries(airsnap 
